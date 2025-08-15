@@ -18,6 +18,7 @@ import io.netty.util.concurrent.DefaultThreadFactory;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
@@ -36,6 +37,9 @@ public class NettyStarter implements CommandLineRunner {
     private volatile Boolean started = false;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
+
+    @Value("${netty.vth}")
+    private Boolean nettyVth;
 
     @Override
     public void run(String... args) {
@@ -85,11 +89,17 @@ public class NettyStarter implements CommandLineRunner {
     private Class<? extends ServerChannel> initEventLoop() {
         int bossThreadCount = 1;
         int workerThreadCount = NettyRuntime.availableProcessors() * 2;
+        ThreadFactory bossThreadFactory;
+        ThreadFactory workerThreadFactory;
+        if (nettyVth) {
+            log.info("vth netty bootstrap enabled");
+            bossThreadFactory = Thread.ofVirtual().name("boss-vth-", 1).factory();
+            workerThreadFactory = Thread.ofVirtual().name("work-vth-", 1).factory();
+        } else {
+            bossThreadFactory = new DefaultThreadFactory("boss");
+            workerThreadFactory = new DefaultThreadFactory("worker");
+        }
 
-        ThreadFactory bossThreadFactory = new DefaultThreadFactory("boss");
-        ThreadFactory workerThreadFactory = new DefaultThreadFactory("worker");
-//        ThreadFactory bossThreadFactory = Thread.ofVirtual().name("boss-vth-", 1).factory();
-//        ThreadFactory workerThreadFactory = Thread.ofVirtual().name("work-vth-", 1).factory();
         IoHandlerFactory ioHandlerFactory;
         Class<? extends ServerChannel> serverChannelClass;
         if (IoUring.isAvailable()) {
